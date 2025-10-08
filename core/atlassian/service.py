@@ -19,7 +19,7 @@ class AtlassianBase:
         return self._headers.copy()
 
 
-#TODO test class
+# TODO test class
 class AtlassianBitbucketServer(AtlassianBase):
     def get_commits(self, workspace, repo, branch, limit) -> requests.Response:
         url = f"{self.base_url}/rest/api/1.0/projects/{workspace}/repos/{repo}/commits"
