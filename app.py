@@ -25,11 +25,9 @@ def init_application():
     )
 
     fastapi_app.include_router(bitbucket_router)
-
     return fastapi_app
 
 
 app: FastAPI = init_application()
-
 
 print("The service is running")

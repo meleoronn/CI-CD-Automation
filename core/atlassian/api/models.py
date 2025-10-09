@@ -1,10 +1,38 @@
+from enum import Enum
+from typing import Optional
+
 from pydantic import BaseModel, Field, HttpUrl
 
 
-# TODO test model
-class JiraCreateIssueRequest(BaseModel):
-    app_url: HttpUrl = Field(...)
-    workspace: str = Field(...)
-    repo: str = Field(...)
-    branch: str = Field(...)
-    limit: int = Field(...)
+class BitbucketServerBase(BaseModel):
+    url: HttpUrl = Field(..., description="Atlassian host with the bitbucket server that is being accessed")
+
+
+class BitbucketWorkspace(BitbucketServerBase):
+    workspace: str = Field(..., min_length=1, description="Workspace identifier")
+
+
+class BitbucketRepository(BitbucketWorkspace):
+    repository: str = Field(..., min_length=1, description="Repository name")
+
+
+class RequestBitbucketServerCommits(BitbucketRepository):
+    branch: str = Field(..., min_length=1, description="Repository branch")
+    limit: int = Field(default=1, ge=1, le=25, description="How many results to return per page")
+
+
+class ResponseStatus(str, Enum):
+    SUCCESS = "success"
+    ERROR = "error"
+
+
+class BaseResponse(BaseModel):
+    status: ResponseStatus = Field(..., description="Request status")
+    message: str = Field(..., description="The output message")
+
+
+class ResponseBitbucketServerCommits(BaseResponse):
+    data: Optional[dict] = Field(None, description="List of commits")
+
+    class Config:
+        use_enum_values = True
