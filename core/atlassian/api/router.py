@@ -12,29 +12,27 @@ router = APIRouter(prefix="/bitbucket/repository", tags=["Bitbucket"])
 
 @router.get(
     "/commits",
-    summary="Getting commits from the repository",
+    summary="Get commits from a Bitbucket repository branch",
     response_model=models.ResponseBitbucketServerCommits,
     response_model_exclude_none=True,
-    responses={
-        # TODO add examples responses
-    },
 )
-async def test(
+async def get_commits(
     request: models.RequestBitbucketServerCommits = Depends(),
     credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.get),
-) -> models.ResponseBitbucketServerCommits:
+) -> Union[models.ResponseBitbucketServerCommits, JSONResponse]:
     if isinstance(credentials, JSONResponse):
         return credentials
 
+    repository = BitbucketRepositoryClient(
+        base_url=request.url,
+        credentials=credentials,
+        project_key=request.workspace,
+        repo_slug=request.repository,
+        branch_name=request.branch,
+    )
+
     try:
-        repository = BitbucketRepositoryClient(
-            request.url,
-            credentials,
-            request.workspace,
-            request.repository,
-            request.branch,
-        )
-        response = await repository.fetch_commits(request.limit)
+        response = await repository.fetch_commits(limit=request.limit)
 
         if 200 <= response.status_code <= 299:
             data = response.json()
@@ -56,7 +54,7 @@ async def test(
         return JSONResponse(
             content=models.ResponseBitbucketServerCommits(
                 status="error",
-                message=f"Internal error when getting a task: {e}",
+                message=f"Internal error while fetching commits: {e}",
             ).model_dump(exclude_none=True),
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
