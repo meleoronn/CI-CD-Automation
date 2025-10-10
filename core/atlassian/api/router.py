@@ -1,11 +1,11 @@
 from typing import Union
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
 from core.atlassian.api import models
 from core.atlassian.auth import auth, strategies
-from core.atlassian.service import BitbucketServer
+from core.atlassian.service import BitbucketRepositoryClient
 
 router = APIRouter(prefix="/bitbucket/repository", tags=["Bitbucket"])
 
@@ -21,16 +21,20 @@ router = APIRouter(prefix="/bitbucket/repository", tags=["Bitbucket"])
 )
 async def test(
     request: models.RequestBitbucketServerCommits = Depends(),
-    credentials: Union[strategies.AuthStrategy, HTTPException] = Depends(auth.get_auth),
+    credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.get),
 ) -> models.ResponseBitbucketServerCommits:
+    if isinstance(credentials, JSONResponse):
+        return credentials
+
     try:
-        atlassian = BitbucketServer(request.url, credentials)
-        response = await atlassian.repository_commits(
+        repository = BitbucketRepositoryClient(
+            request.url,
+            credentials,
             request.workspace,
             request.repository,
             request.branch,
-            request.limit,
         )
+        response = await repository.fetch_commits(request.limit)
 
         if 200 <= response.status_code <= 299:
             data = response.json()
@@ -38,7 +42,7 @@ async def test(
             return models.ResponseBitbucketServerCommits(status="success", message=message, data=data)
         elif 400 <= response.status_code <= 499:
             data = response.json()
-            message = atlassian.extract_error(data)
+            message = repository.extract_error(data)
             return JSONResponse(
                 content=models.ResponseBitbucketServerCommits(
                     status="error",
@@ -48,8 +52,6 @@ async def test(
             )
 
         raise Exception("Unexpected response from the Bitbucket server.")
-    except HTTPException as e:
-        raise
     except Exception as e:
         return JSONResponse(
             content=models.ResponseBitbucketServerCommits(
