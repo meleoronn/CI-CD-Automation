@@ -20,7 +20,7 @@ basic_scheme = HTTPBasic(
 )
 
 
-def get(
+def bitbucket(
     bearer: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     basic: Optional[HTTPBasicCredentials] = Depends(basic_scheme),
 ) -> Union[AuthStrategy, JSONResponse]:
@@ -32,7 +32,11 @@ def get(
     return JSONResponse(
         content=models.ResponseBitbucketServerCommits(
             status="error",
-            message="Check the entered username and password.",
+            message="Check the entered username and password or token.",
         ).model_dump(exclude_none=True),
         status_code=401,
     )
+
+
+def git(basic: Optional[HTTPBasicCredentials] = Depends(basic_scheme)) -> Optional[AuthStrategy]:
+    return (basic.username, basic.password) if basic else None

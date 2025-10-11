@@ -1,8 +1,14 @@
+from pathlib import Path
+from typing import Optional, Tuple
+
 import httpx
 import requests
+from git import Repo
 from pydantic import HttpUrl
 
 from core.atlassian.auth.strategies import AuthStrategy
+
+REPO_STORAGE = Path("/home/andrei/workspace/CI-CD-Automation")
 
 
 class AtlassianClientBase:
@@ -56,3 +62,32 @@ class BitbucketRepositoryClient(AtlassianClientBase):
     async def fetch_latest_commit(self) -> requests.Response:
         response = await self.get_repository_commits(limit=1)
         return response
+
+
+class BitbucketGitClient:
+    def __init__(self, repo_url: str, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
+        self.repo_url = repo_url.strip()
+        self.folder = folder
+        self.credentials = credentials
+        self.name = self._compute_name()
+        self.path = self._compute_path()
+
+        self._headers = {"Accept": "application/json", "Content-Type": "application/json"}
+
+    def clone(self, force_reclone: bool = False) -> Repo:
+        if self.repo_path.exists() and not force_reclone:
+            return Repo(self.repo_path)
+
+        if self.repo_url.startswith("ssh://") or self.repo_url.startswith("git@"):
+            Repo.clone_from(self.repo_url, self.repo_path)
+        else:
+            auth_url = self._get_authenticated_url()
+            Repo.clone_from(auth_url, self.repo_path)
+
+        return Repo(self.repo_path)
+
+    def _compute_name(self) -> str:
+        return self.repo_url.split("/")[-1].replace(".git", "")
+
+    def _compute_path(self) -> Path:
+        return REPO_STORAGE / self.folder

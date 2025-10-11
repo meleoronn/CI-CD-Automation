@@ -18,7 +18,7 @@ router = APIRouter(prefix="/bitbucket/repository", tags=["Bitbucket"])
 )
 async def get_commits(
     request: models.RequestBitbucketServerCommits = Depends(),
-    credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.get),
+    credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.bitbucket),
 ) -> Union[models.ResponseBitbucketServerCommits, JSONResponse]:
     if isinstance(credentials, JSONResponse):
         return credentials
@@ -58,3 +58,14 @@ async def get_commits(
             ).model_dump(exclude_none=True),
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+@router.get(
+    "/test",
+    summary="test",
+    response_model_exclude_none=True,
+)
+async def get_commits(
+    credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
+):
+    return {"test": credentials}
