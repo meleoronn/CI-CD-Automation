@@ -8,6 +8,7 @@ from pydantic import HttpUrl
 
 from core.atlassian.auth.strategies import AuthStrategy
 
+# TODO put in environment variables
 REPO_STORAGE = Path("/home/andrei/workspace/CI-CD-Automation")
 
 
@@ -74,17 +75,26 @@ class BitbucketGitClient:
 
         self._headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
-    def clone(self, force_reclone: bool = False) -> Repo:
-        if self.repo_path.exists() and not force_reclone:
+    def clone(self) -> Repo:
+        if self.repo_path.exists():
+            # TODO Change to an error?
             return Repo(self.repo_path)
 
         if self.repo_url.startswith("ssh://") or self.repo_url.startswith("git@"):
             Repo.clone_from(self.repo_url, self.repo_path)
         else:
-            auth_url = self._get_authenticated_url()
+            auth_url = self._authenticated_url()
             Repo.clone_from(auth_url, self.repo_path)
 
         return Repo(self.repo_path)
+
+    def _authenticated_url(self) -> str:
+        if not self.credentials:
+            return self.repo_url
+
+        username = self.credentials[0]
+        password = self.credentials[1]
+        return self.repo_url.replace("https://", f"https://{username}:{password}@")
 
     def _compute_name(self) -> str:
         return self.repo_url.split("/")[-1].replace(".git", "")
