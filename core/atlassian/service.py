@@ -3,10 +3,13 @@ from typing import Optional, Tuple
 
 import httpx
 import requests
-from git import Repo
+from git import FetchInfo, GitCommandError, Repo
+from git.exc import NoSuchPathError
+from git.util import IterableList
 from pydantic import HttpUrl
 
 from core.atlassian.auth.strategies import AuthStrategy
+from core.atlassian.exceptions import CloneError, PullError, RepositoryError, RepositoryNotFoundError
 
 # TODO put in environment variables
 REPO_STORAGE = Path("/home/andrei/workspace/CI-CD-Automation")
@@ -65,39 +68,91 @@ class BitbucketRepositoryClient(AtlassianClientBase):
         return response
 
 
-class BitbucketGitClient:
-    def __init__(self, repo_url: str, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
-        self.repo_url = repo_url.strip()
+class RepositoryGitClient:
+    def __init__(self, clone_url: str, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
+        self.clone_url = clone_url.strip()
         self.folder = folder
         self.credentials = credentials
         self.name = self._compute_name()
         self.path = self._compute_path()
+        self.repository: Optional[Repo] = None
 
-        self._headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    def clone(self, branch: str = "main") -> Repo:
+        if self.path.exists():
+            raise FileExistsError("A repository with that name already exists.")
 
-    def clone(self) -> Repo:
-        if self.repo_path.exists():
-            # TODO Change to an error?
-            return Repo(self.repo_path)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise CloneError(f"Failed to create parent directory '{self.path.parent}': {e}")
 
-        if self.repo_url.startswith("ssh://") or self.repo_url.startswith("git@"):
-            Repo.clone_from(self.repo_url, self.repo_path)
-        else:
-            auth_url = self._authenticated_url()
-            Repo.clone_from(auth_url, self.repo_path)
+        url = self.clone_url
 
-        return Repo(self.repo_path)
+        if not (url.startswith("ssh://") or url.startswith("git@")):
+            url = self._authenticated_url()
+
+        try:
+            self.repository = Repo.clone_from(
+                url=url,
+                to_path=self.path,
+                branch=branch,
+                single_branch=True,
+                depth=1,
+            )
+
+            if not self.repository:
+                raise CloneError("Cloning the repository returned nothing")
+
+            return self.repository
+        except GitCommandError as e:
+            raise CloneError(f"Git clone failed: {e}")
+        except Exception as e:
+            raise CloneError(f"Unexpected clone error: {e}")
+
+    def pull(self) -> IterableList[FetchInfo]:
+        if not self.path.exists():
+            raise FileNotFoundError("The repository was not found.")
+
+        self.repository_load()
+        origin = self.repository.remotes.origin
+
+        if not (self.clone_url.startswith("ssh://") or self.clone_url.startswith("git@")):
+            origin.set_url(self._authenticated_url())
+
+        try:
+            return origin.pull()
+        except GitCommandError as e:
+            raise PullError(f"Git pull failed: {e}")
+        except Exception as e:
+            raise PullError(f"Unexpected pull error: {e}")
+
+    def repository_load(self) -> None:
+        if self.repository:
+            return
+
+        if not self.path.exists():
+            raise RepositoryNotFoundError(f"The repository directory was not found at {self.path}")
+
+        try:
+            self.repository = Repo(self.path)
+        except NoSuchPathError:
+            raise RepositoryNotFoundError(f"The repository directory was not found at {self.path}")
+        except Exception as e:
+            raise RepositoryError(f"Failed to open repository: {e}")
 
     def _authenticated_url(self) -> str:
         if not self.credentials:
-            return self.repo_url
+            return self.clone_url
 
-        username = self.credentials[0]
-        password = self.credentials[1]
-        return self.repo_url.replace("https://", f"https://{username}:{password}@")
+        username, password = self.credentials
+
+        if not username or not password:
+            return self.clone_url
+
+        return self.clone_url.replace("https://", f"https://{username}:{password}@")
 
     def _compute_name(self) -> str:
-        return self.repo_url.split("/")[-1].replace(".git", "")
+        return self.clone_url.split("/")[-1].replace(".git", "")
 
     def _compute_path(self) -> Path:
         return REPO_STORAGE / self.folder

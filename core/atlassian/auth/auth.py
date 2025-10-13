@@ -30,7 +30,7 @@ def bitbucket(
         return BasicAuth(basic.username, basic.password)
 
     return JSONResponse(
-        content=models.ResponseBitbucketServerCommits(
+        content=models.BitbucketServerResponse(
             status="error",
             message="Check the entered username and password or token.",
         ).model_dump(exclude_none=True),
