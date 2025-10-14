@@ -9,7 +9,6 @@ from git.util import IterableList
 from pydantic import HttpUrl
 
 from core.atlassian.auth.strategies import AuthStrategy
-from core.atlassian.exceptions import CloneError, PullError, RepositoryError, RepositoryNotFoundError
 
 # TODO put in environment variables
 REPO_STORAGE = Path("/home/andrei/workspace/CI-CD-Automation")
@@ -84,7 +83,7 @@ class RepositoryGitClient:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            raise CloneError(f"Failed to create parent directory '{self.path.parent}': {e}")
+            raise Exception(f"Failed to create parent directory '{self.path.parent}': {e}")
 
         url = self.clone_url
 
@@ -101,13 +100,13 @@ class RepositoryGitClient:
             )
 
             if not self.repository:
-                raise CloneError("Cloning the repository returned nothing")
+                raise Exception("Cloning the repository returned nothing")
 
             return self.repository
         except GitCommandError as e:
-            raise CloneError(f"Git clone failed: {e}")
+            raise Exception(f"Git clone failed: {e}")
         except Exception as e:
-            raise CloneError(f"Unexpected clone error: {e}")
+            raise Exception(f"Unexpected clone error: {e}")
 
     def pull(self) -> IterableList[FetchInfo]:
         if not self.path.exists():
@@ -122,23 +121,23 @@ class RepositoryGitClient:
         try:
             return origin.pull()
         except GitCommandError as e:
-            raise PullError(f"Git pull failed: {e}")
+            raise Exception(f"Git pull failed: {e}")
         except Exception as e:
-            raise PullError(f"Unexpected pull error: {e}")
+            raise Exception(f"Unexpected pull error: {e}")
 
     def repository_load(self) -> None:
         if self.repository:
             return
 
         if not self.path.exists():
-            raise RepositoryNotFoundError(f"The repository directory was not found at {self.path}")
+            raise Exception(f"The repository directory was not found at {self.path}")
 
         try:
             self.repository = Repo(self.path)
         except NoSuchPathError:
-            raise RepositoryNotFoundError(f"The repository directory was not found at {self.path}")
+            raise Exception(f"The repository directory was not found at {self.path}")
         except Exception as e:
-            raise RepositoryError(f"Failed to open repository: {e}")
+            raise Exception(f"Failed to open repository: {e}")
 
     def _authenticated_url(self) -> str:
         if not self.credentials:

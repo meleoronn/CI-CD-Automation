@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 
 from core.atlassian.api import models
 from core.atlassian.auth import auth, strategies
-from core.atlassian.exceptions import CloneError, PullError
 from core.atlassian.service import BitbucketRepositoryClient, RepositoryGitClient
 
 router = APIRouter(prefix="/bitbucket/repository", tags=["Bitbucket"])
@@ -83,14 +82,6 @@ async def clone(
             ).model_dump(exclude_none=True),
             status_code=400,
         )
-    except CloneError as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=str(e),
-            ).model_dump(exclude_none=True),
-            status_code=500,
-        )
     except Exception as e:
         return JSONResponse(
             content=models.BitbucketServerResponse(
@@ -123,14 +114,6 @@ async def pull(
                 message=str(e),
             ).model_dump(exclude_none=True),
             status_code=400,
-        )
-    except PullError as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=str(e),
-            ).model_dump(exclude_none=True),
-            status_code=500,
         )
     except Exception as e:
         return JSONResponse(
