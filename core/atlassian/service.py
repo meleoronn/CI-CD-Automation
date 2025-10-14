@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -110,24 +111,40 @@ class RepositoryGitClient:
 
         self.repository_load()
 
-        origin = self.repository.remotes.origin
-
-        if clone_url and self._needs_authentication(clone_url):
-            origin.set_url(self._create_authenticated_url(clone_url))
-
         try:
+            origin = self.repository.remotes.origin
+
+            if clone_url and self._needs_authentication(clone_url):
+                origin.set_url(self._create_authenticated_url(clone_url))
+
             return origin.pull()
         except GitCommandError as e:
             raise Exception(f"Git pull failed: {e}")
         except Exception as e:
             raise Exception(f"Unexpected pull error: {e}")
 
+    def delete(self) -> None:
+        if not self.path.exists():
+            raise FileNotFoundError("The repository was not found.")
+
+        if hasattr(self, "repository") and self.repository is not None:
+            try:
+                self.repository.close()
+            except Exception:
+                pass
+            finally:
+                self.repository = None
+
+        try:
+            shutil.rmtree(self.path)
+        except OSError as e:
+            raise OSError(f"Failed to delete repository directory: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error during repository deletion: {e}")
+
     def repository_load(self) -> Repo:
         if self.repository:
             return self.repository
-
-        if not self.path.exists():
-            raise Exception(f"The repository directory was not found at {self.path}")
 
         try:
             self.repository = Repo(self.path)

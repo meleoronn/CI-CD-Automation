@@ -34,6 +34,10 @@ class RepositoryPullRequest(RepositoryRequest):
     pass
 
 
+class RepositoryDeleteRequest(RepositoryRequest):
+    pass
+
+
 class ResponseStatus(str, Enum):
     SUCCESS = "success"
     ERROR = "error"

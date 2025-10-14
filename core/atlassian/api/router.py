@@ -50,13 +50,11 @@ async def get_commits(
 
         raise Exception("Unexpected response from the Bitbucket server.")
     except Exception as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=f"Internal error while fetching commits: {e}",
-            ).model_dump(exclude_none=True),
-            status_code=500,
-        )
+        message = f"Internal error while fetching commits: {e}"
+        status_code = 500
+
+    content = models.BitbucketServerResponse(status="error", message=message).model_dump(exclude_none=True)
+    return JSONResponse(content=content, status_code=status_code)
 
 
 @router.post(
@@ -74,21 +72,14 @@ async def clone(
         client.clone(clone_url=request.url, branch=request.branch)
         return {"status": "success", "message": "The repository is cloned"}
     except FileExistsError as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=str(e),
-            ).model_dump(exclude_none=True),
-            status_code=400,
-        )
+        message = str(e)
+        status_code = 400
     except Exception as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=f"Internal error when cloning the repository: {e}",
-            ).model_dump(exclude_none=True),
-            status_code=500,
-        )
+        message = f"Internal error when cloning the repository: {e}"
+        status_code = 500
+
+    content = models.BitbucketServerResponse(status="error", message=message).model_dump(exclude_none=True)
+    return JSONResponse(content=content, status_code=status_code)
 
 
 @router.put(
@@ -106,18 +97,36 @@ async def pull(
         client.pull()
         return {"status": "success", "message": "The changes were pulled from the repository"}
     except FileNotFoundError as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=str(e),
-            ).model_dump(exclude_none=True),
-            status_code=400,
-        )
+        message = str(e)
+        status_code = 404
     except Exception as e:
-        return JSONResponse(
-            content=models.BitbucketServerResponse(
-                status="error",
-                message=f"Internal error when extracting changes from the repository: {e}",
-            ).model_dump(exclude_none=True),
-            status_code=500,
-        )
+        message = f"Internal error when extracting changes from the repository: {e}"
+        status_code = 500
+
+    content = models.BitbucketServerResponse(status="error", message=message).model_dump(exclude_none=True)
+    return JSONResponse(content=content, status_code=status_code)
+
+
+@router.delete(
+    "/delete",
+    summary="Deleting a cloned repository",
+    response_model=models.BitbucketServerResponse,
+    response_model_exclude_none=True,
+)
+async def pull(
+    request: models.RepositoryDeleteRequest,
+    credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
+) -> Union[models.BitbucketServerResponse, JSONResponse]:
+    try:
+        client = RepositoryGitClient(folder=request.name, credentials=credentials)
+        client.delete()
+        return {"status": "success", "message": "The cloned repository has been deleted"}
+    except FileNotFoundError as e:
+        message = str(e)
+        status_code = 404
+    except Exception as e:
+        message = f"Internal error when deleting a cloned repository: {e}"
+        status_code = 500
+
+    content = models.BitbucketServerResponse(status="error", message=message).model_dump(exclude_none=True)
+    return JSONResponse(content=content, status_code=status_code)
