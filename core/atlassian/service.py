@@ -68,15 +68,13 @@ class BitbucketRepositoryClient(AtlassianClientBase):
 
 
 class RepositoryGitClient:
-    def __init__(self, clone_url: str, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
-        self.clone_url = clone_url.strip()
+    def __init__(self, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
         self.folder = folder
         self.credentials = credentials
-        self.name = self._compute_name()
-        self.path = self._compute_path()
+        self.path = REPO_STORAGE / self.folder
         self.repository: Optional[Repo] = None
 
-    def clone(self, branch: str = "main") -> Repo:
+    def clone(self, clone_url: str, branch: str = "main") -> Repo:
         if self.path.exists():
             raise FileExistsError("A repository with that name already exists.")
 
@@ -85,14 +83,12 @@ class RepositoryGitClient:
         except Exception as e:
             raise Exception(f"Failed to create parent directory '{self.path.parent}': {e}")
 
-        url = self.clone_url
-
-        if not (url.startswith("ssh://") or url.startswith("git@")):
-            url = self._authenticated_url()
+        if self._needs_authentication(clone_url):
+            clone_url = self._create_authenticated_url(clone_url)
 
         try:
             self.repository = Repo.clone_from(
-                url=url,
+                url=clone_url,
                 to_path=self.path,
                 branch=branch,
                 single_branch=True,
@@ -108,15 +104,16 @@ class RepositoryGitClient:
         except Exception as e:
             raise Exception(f"Unexpected clone error: {e}")
 
-    def pull(self) -> IterableList[FetchInfo]:
+    def pull(self, clone_url: Optional[str] = None) -> IterableList[FetchInfo]:
         if not self.path.exists():
             raise FileNotFoundError("The repository was not found.")
 
         self.repository_load()
+
         origin = self.repository.remotes.origin
 
-        if not (self.clone_url.startswith("ssh://") or self.clone_url.startswith("git@")):
-            origin.set_url(self._authenticated_url())
+        if clone_url and self._needs_authentication(clone_url):
+            origin.set_url(self._create_authenticated_url(clone_url))
 
         try:
             return origin.pull()
@@ -125,33 +122,36 @@ class RepositoryGitClient:
         except Exception as e:
             raise Exception(f"Unexpected pull error: {e}")
 
-    def repository_load(self) -> None:
+    def repository_load(self) -> Repo:
         if self.repository:
-            return
+            return self.repository
 
         if not self.path.exists():
             raise Exception(f"The repository directory was not found at {self.path}")
 
         try:
             self.repository = Repo(self.path)
+            return self.repository
         except NoSuchPathError:
             raise Exception(f"The repository directory was not found at {self.path}")
         except Exception as e:
             raise Exception(f"Failed to open repository: {e}")
 
-    def _authenticated_url(self) -> str:
+    def _create_authenticated_url(self, clone_url: str) -> str:
         if not self.credentials:
-            return self.clone_url
+            return clone_url
 
         username, password = self.credentials
 
         if not username or not password:
-            return self.clone_url
+            return clone_url
 
-        return self.clone_url.replace("https://", f"https://{username}:{password}@")
+        return clone_url.replace("https://", f"https://{username}:{password}@")
 
-    def _compute_name(self) -> str:
-        return self.clone_url.split("/")[-1].replace(".git", "")
+    @staticmethod
+    def _needs_authentication(clone_url: str) -> bool:
+        return not clone_url.startswith(("ssh://", "git@"))
 
-    def _compute_path(self) -> Path:
-        return REPO_STORAGE / self.folder
+    # @staticmethod
+    # def _compute_name(self, clone_url: str) -> str:
+    #     return clone_url.split("/")[-1].replace(".git", "")

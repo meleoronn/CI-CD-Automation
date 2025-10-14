@@ -69,10 +69,9 @@ async def clone(
     request: models.RepositoryCloneRequest,
     credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
 ) -> Union[models.BitbucketServerResponse, JSONResponse]:
-    client = RepositoryGitClient(clone_url=request.url, folder=request.name, credentials=credentials)
-
     try:
-        client.clone(branch=request.branch)
+        client = RepositoryGitClient(folder=request.name, credentials=credentials)
+        client.clone(clone_url=request.url, branch=request.branch)
         return {"status": "success", "message": "The repository is cloned"}
     except FileExistsError as e:
         return JSONResponse(
@@ -102,9 +101,8 @@ async def pull(
     request: models.RepositoryPullRequest,
     credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
 ) -> Union[models.BitbucketServerResponse, JSONResponse]:
-    client = RepositoryGitClient(clone_url=request.url, folder=request.name, credentials=credentials)
-
     try:
+        client = RepositoryGitClient(folder=request.name, credentials=credentials)
         client.pull()
         return {"status": "success", "message": "The changes were pulled from the repository"}
     except FileNotFoundError as e:

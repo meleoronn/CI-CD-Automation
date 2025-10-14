@@ -21,13 +21,17 @@ class RequestBitbucketServerCommits(BitbucketRepository):
     limit: int = Field(default=1, ge=1, le=25, description="How many results to return per page")
 
 
-class RepositoryPullRequest(BaseModel):
-    url: str = Field(..., min_length=1, description="The link for cloning the repository")
+class RepositoryRequest(BaseModel):
     name: str = Field(..., min_length=1, description="The unique name under which the repository will be saved")
 
 
-class RepositoryCloneRequest(RepositoryPullRequest):
+class RepositoryCloneRequest(RepositoryRequest):
+    url: str = Field(..., min_length=1, description="The link for cloning the repository")
     branch: str = Field(default="main", min_length=1, description="The branch that needs to be cloned or updated")
+
+
+class RepositoryPullRequest(RepositoryRequest):
+    pass
 
 
 class ResponseStatus(str, Enum):
