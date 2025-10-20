@@ -10,9 +10,7 @@ from git.util import IterableList
 from pydantic import HttpUrl
 
 from core.atlassian.auth.strategies import AuthStrategy
-
-# TODO put in environment variables
-REPO_STORAGE = Path("/home/andrei/workspace/CI-CD-Automation")
+from core.settings import setting
 
 
 class AtlassianClientBase:
@@ -72,7 +70,7 @@ class RepositoryGitClient:
     def __init__(self, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
         self.folder = folder
         self.credentials = credentials
-        self.path = REPO_STORAGE / self.folder
+        self.path = Path(setting.REPOSITORY_STORAGE) / self.folder
         self.repository: Optional[Repo] = None
 
     def clone(self, clone_url: str, branch: str = "main") -> Repo:

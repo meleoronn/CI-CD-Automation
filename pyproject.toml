@@ -15,7 +15,8 @@ dependencies = [
     "gitpython (==3.1.45)",
     "sqlalchemy (==2.0.44)",
     "alembic (==1.17.0)",
-    "psycopg2-binary (>=2.9.11,<3.0.0)"
+    "psycopg2-binary (==2.9.11)",
+    "pydantic-settings (==2.11.0)",
 ]
 
 
