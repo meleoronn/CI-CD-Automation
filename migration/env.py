@@ -18,10 +18,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from core.db.base import DATABASE_URL
+from core.settings import setting
 from core.db.models import Base
 
-config.set_main_option('sqlalchemy.url', DATABASE_URL.render_as_string(hide_password=False))
+config.set_main_option('sqlalchemy.url', setting.database_url.render_as_string(hide_password=False))
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
