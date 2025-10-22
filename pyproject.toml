@@ -1,6 +1,6 @@
 [project]
 name = "ci-cd-automation"
-version = "0.1.6"
+version = "0.1.7"
 description = ""
 authors = [
     {name = "Andrei Dashkevich",email = "dashkevichworks@gmail.com"}
