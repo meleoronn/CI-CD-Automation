@@ -75,8 +75,10 @@ class BitbucketRepositoryClient(AtlassianClientBase):
         response = requests.get(url, timeout=10.0)
         data = response.json()
 
-        data["displayName"] += " Server"
-
+        provider_name = data.get("displayName", "Unknown name")
+        provider_name += " Server"
+        provider_version = data.get("version", "")
+        data["provider"] = f"{provider_name} {provider_version}"
         return data
 
 
@@ -100,17 +102,16 @@ class RepositoryGitClient:
         try:
             base_url = self._compute_base_url(clone_url, filter_path=["bitbucket"])
             provider_data = BitbucketRepositoryClient.provider_info(base_url)
-            provider_name = provider_data.get("displayName", "Unknown name")
-            provider_version = provider_data.get("version", "")
+            provider_name = provider_data.get("provider", "Unknown")
         except Exception as e:
             raise Exception(f"Error getting basic repository information: {e}")
 
         if self._needs_authentication(clone_url):
-            clone_url = self._create_authenticated_url(clone_url)
+            authenticated_clone_url = self._create_authenticated_url(clone_url)
 
         try:
             self.repository = Repo.clone_from(
-                url=clone_url,
+                url=authenticated_clone_url,
                 to_path=self.path,
                 branch=branch,
                 single_branch=True,
@@ -120,16 +121,26 @@ class RepositoryGitClient:
             if not self.repository:
                 raise Exception("Cloning the repository returned nothing")
 
-            with self.uow.start() as session:
-                db = RepositoryReadWrite(session)
-                db_repository = Repository(
-                    name=self.folder,
-                    provider=f"{provider_name} {provider_version}",
-                    api_url=base_url,
-                    clone_url=clone_url,
-                    branch=branch,
-                )
-                db.add(db_repository)
+            try:
+                commit = self.repository.head.commit
+
+                with self.uow.start() as session:
+                    db = RepositoryReadWrite(session)
+                    db_repository = Repository(
+                        name=self.folder,
+                        provider=provider_name,
+                        api_url=base_url,
+                        clone_url=clone_url,
+                        branch=branch,
+                        last_commit_hash=commit.hexsha,
+                        last_commit_message=commit.message.strip(),
+                        last_commit_author=str(commit.author),
+                        last_commit_timestamp=commit.authored_datetime.isoformat(),
+                    )
+                    db.add(db_repository)
+            except Exception:
+                self.delete()
+                raise
 
             return self.repository
         except GitCommandError as e:
