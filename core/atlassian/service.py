@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 
 import httpx
 import requests
@@ -10,6 +11,9 @@ from git.util import IterableList
 from pydantic import HttpUrl
 
 from core.atlassian.auth.strategies import AuthStrategy
+from core.db.models import Repository
+from core.db.repositories import RepositoryReadWrite
+from core.db.unit_of_work import UnitOfWork
 from core.settings import setting
 
 
@@ -65,13 +69,24 @@ class BitbucketRepositoryClient(AtlassianClientBase):
         response = await self.get_repository_commits(limit=1)
         return response
 
+    @staticmethod
+    def provider_info(base_url) -> dict:
+        url = f"{base_url}/rest/api/1.0/application-properties"
+        response = requests.get(url, timeout=10.0)
+        data = response.json()
+
+        data["displayName"] += " Server"
+
+        return data
+
 
 class RepositoryGitClient:
     def __init__(self, folder: str, credentials: Optional[Tuple[Optional[str], Optional[str]]] = None):
         self.folder = folder
         self.credentials = credentials
-        self.path = Path(setting.REPOSITORY_STORAGE) / self.folder
+        self.path = Path(setting.REPOSITORIES_STORAGE) / self.folder
         self.repository: Optional[Repo] = None
+        self.uow = UnitOfWork()
 
     def clone(self, clone_url: str, branch: str = "main") -> Repo:
         if self.path.exists():
@@ -81,6 +96,14 @@ class RepositoryGitClient:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             raise Exception(f"Failed to create parent directory '{self.path.parent}': {e}")
+
+        try:
+            base_url = self._compute_base_url(clone_url, filter_path=["bitbucket"])
+            provider_data = BitbucketRepositoryClient.provider_info(base_url)
+            provider_name = provider_data.get("displayName", "Unknown name")
+            provider_version = provider_data.get("version", "")
+        except Exception as e:
+            raise Exception(f"Error getting basic repository information: {e}")
 
         if self._needs_authentication(clone_url):
             clone_url = self._create_authenticated_url(clone_url)
@@ -96,6 +119,17 @@ class RepositoryGitClient:
 
             if not self.repository:
                 raise Exception("Cloning the repository returned nothing")
+
+            with self.uow.start() as session:
+                db = RepositoryReadWrite(session)
+                db_repository = Repository(
+                    name=self.folder,
+                    provider=f"{provider_name} {provider_version}",
+                    api_url=base_url,
+                    clone_url=clone_url,
+                    branch=branch,
+                )
+                db.add(db_repository)
 
             return self.repository
         except GitCommandError as e:
@@ -166,6 +200,20 @@ class RepositoryGitClient:
     @staticmethod
     def _needs_authentication(clone_url: str) -> bool:
         return not clone_url.startswith(("ssh://", "git@"))
+
+    @staticmethod
+    def _compute_base_url(clone_url: str, filter_path: List[str] = None) -> str:
+        parsed = urlparse(clone_url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+
+        if filter_path:
+            path_parts = parsed.path.split("/")
+
+            if len(path_parts) > 1 and path_parts[1] in filter_path:
+                context_path = "/" + path_parts[1]
+                base_url += context_path
+
+        return base_url
 
     # @staticmethod
     # def _compute_name(self, clone_url: str) -> str:
