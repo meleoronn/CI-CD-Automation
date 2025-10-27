@@ -13,7 +13,7 @@ from pydantic import HttpUrl
 
 import version
 from core.atlassian.auth.strategies import AuthStrategy
-from core.db.models import Repository, SyncStatus
+from core.db.models import Repository, RepoStatus, SyncStatus
 from core.db.repositories import RepositoryReadWrite
 from core.db.unit_of_work import UnitOfWork
 from core.settings import setting
@@ -169,7 +169,6 @@ class RepositoryGitClient:
             db_repository.last_sync_status = SyncStatus.failed
             db_repository.last_sync_at = time_now
             db_repository.sync_count = (db_repository.sync_count or 0) + 1
-            db_repository.updated_at = time_now
 
             try:
                 origin = self.repository.remotes.origin
@@ -210,6 +209,12 @@ class RepositoryGitClient:
 
         try:
             shutil.rmtree(self.path)
+
+            with self.uow.start() as session:
+                db = RepositoryReadWrite(session)
+                db_repository = db.get_by_name(self.folder)
+                db_repository.status = RepoStatus.inactive
+                db_repository.deleted_at = datetime.now(timezone.utc)
         except OSError as e:
             raise OSError(f"Failed to delete repository directory: {e}")
         except Exception as e:

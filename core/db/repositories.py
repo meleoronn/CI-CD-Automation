@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 
-from core.db.models import Repository
+from core.db.models import Repository, RepoStatus
 
 
 class RepositoryReadWrite:
@@ -29,14 +29,19 @@ class RepositoryReadWrite:
         """
         Returns the repository by ID or None if not found.
         """
-        statement = select(Repository).where(Repository.id == repository_id)
+        statement = select(Repository).where(
+            Repository.id == repository_id,
+        )
         return self.session.execute(statement).scalars().first()
 
     def get_by_name(self, repository_name: str) -> Optional[Repository]:
         """
         Returns the repository by Name or None if not found.
         """
-        statement = select(Repository).where(Repository.name == repository_name)
+        statement = select(Repository).where(
+            Repository.name == repository_name,
+            Repository.status == RepoStatus.active,
+        )
         return self.session.execute(statement).scalars().first()
 
     def get_for_pulling(self, limit: int = 100) -> List[Repository]:
