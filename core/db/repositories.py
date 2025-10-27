@@ -32,6 +32,13 @@ class RepositoryReadWrite:
         statement = select(Repository).where(Repository.id == repository_id)
         return self.session.execute(statement).scalars().first()
 
+    def get_by_name(self, repository_name: str) -> Optional[Repository]:
+        """
+        Returns the repository by Name or None if not found.
+        """
+        statement = select(Repository).where(Repository.name == repository_name)
+        return self.session.execute(statement).scalars().first()
+
     def get_for_pulling(self, limit: int = 100) -> List[Repository]:
         """
         Retrieves the list of active repositories to be polled.
@@ -44,17 +51,3 @@ class RepositoryReadWrite:
             .limit(limit)
         )
         return list(self.session.execute(statement).scalars().all())
-
-    @staticmethod
-    def update_commit_info(
-        repository: Repository, commit_hash: str, message: str, author: str, committed_at
-    ) -> Repository:
-        """
-        Updates the data of the last commit in the repository.
-        """
-        repository.last_commit_hash = commit_hash
-        repository.last_commit_message = message
-        repository.last_commit_author = author
-        repository.last_commit_timestamp = committed_at
-        repository.sync_count = (repository.sync_count or 0) + 1
-        return repository

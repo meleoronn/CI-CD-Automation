@@ -1,4 +1,5 @@
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
@@ -10,8 +11,9 @@ from git.exc import NoSuchPathError
 from git.util import IterableList
 from pydantic import HttpUrl
 
+import version
 from core.atlassian.auth.strategies import AuthStrategy
-from core.db.models import Repository
+from core.db.models import Repository, SyncStatus
 from core.db.repositories import RepositoryReadWrite
 from core.db.unit_of_work import UnitOfWork
 from core.settings import setting
@@ -135,6 +137,7 @@ class RepositoryGitClient:
                         provider=provider_name,
                         api_url=base_url,
                         clone_url=url,
+                        description=version.__version__,
                         branch=branch,
                         last_commit_hash=commit.hexsha,
                         last_commit_message=commit.message.strip(),
@@ -158,17 +161,40 @@ class RepositoryGitClient:
 
         self.repository_load()
 
-        try:
-            origin = self.repository.remotes.origin
+        with self.uow.start() as session:
+            db = RepositoryReadWrite(session)
+            db_repository = db.get_by_name(self.folder)
+            time_now = datetime.now(timezone.utc)
 
-            if clone_url and self._needs_authentication(clone_url):
-                origin.set_url(self._create_authenticated_url(clone_url))
+            db_repository.last_sync_status = SyncStatus.failed
+            db_repository.last_sync_at = time_now
+            db_repository.sync_count = (db_repository.sync_count or 0) + 1
+            db_repository.updated_at = time_now
 
-            return origin.pull()
-        except GitCommandError as e:
-            raise Exception(f"Git pull failed: {e}")
-        except Exception as e:
-            raise Exception(f"Unexpected pull error: {e}")
+            try:
+                origin = self.repository.remotes.origin
+
+                if clone_url and self._needs_authentication(clone_url):
+                    origin.set_url(self._create_authenticated_url(clone_url))
+
+                list_info = origin.pull()
+
+                db_repository.last_sync_status = SyncStatus.success
+                db_repository.last_successful_sync_at = time_now
+
+                commit = self.repository.head.commit
+                db_repository.last_commit_hash = commit.hexsha
+                db_repository.last_commit_message = commit.message.strip()
+                db_repository.last_commit_author = str(commit.author)
+                db_repository.last_commit_timestamp = commit.authored_datetime.isoformat()
+                db_repository.total_commits_synced = (db_repository.total_commits_synced or 0) + 1
+                return list_info
+            except GitCommandError as e:
+                db_repository.failed_sync_count = (db_repository.failed_sync_count or 0) + 1
+                raise Exception(f"Git pull failed: {e}")
+            except Exception as e:
+                db_repository.failed_sync_count = (db_repository.failed_sync_count or 0) + 1
+                raise Exception(f"Unexpected pull error: {e}")
 
     def delete(self):
         if not self.path.exists():
