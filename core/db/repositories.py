@@ -45,8 +45,9 @@ class RepositoryReadWrite:
         )
         return list(self.session.execute(statement).scalars().all())
 
+    @staticmethod
     def update_commit_info(
-        self, repository: Repository, commit_hash: str, message: str, author: str, committed_at
+        repository: Repository, commit_hash: str, message: str, author: str, committed_at
     ) -> Repository:
         """
         Updates the data of the last commit in the repository.

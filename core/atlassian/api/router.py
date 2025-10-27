@@ -69,7 +69,7 @@ async def clone(
 ) -> Union[models.BitbucketServerResponse, JSONResponse]:
     try:
         client = RepositoryGitClient(folder=request.name, credentials=credentials)
-        client.clone(clone_url=request.url, branch=request.branch)
+        client.clone(url=request.url, branch=request.branch)
         return {"status": "success", "message": "The repository is cloned"}
     except FileExistsError as e:
         message = str(e)

@@ -65,6 +65,8 @@ class BitbucketRepositoryClient(AtlassianClientBase):
             response = await client.get(url, params=params, headers=self.headers)
             return response
 
+        return None
+
     async def fetch_latest_commit(self) -> requests.Response:
         response = await self.get_repository_commits(limit=1)
         return response
@@ -90,7 +92,7 @@ class RepositoryGitClient:
         self.repository: Optional[Repo] = None
         self.uow = UnitOfWork()
 
-    def clone(self, clone_url: str, branch: str = "main") -> Repo:
+    def clone(self, url: str, branch: str = "main") -> Repo:
         if self.path.exists():
             raise FileExistsError("A repository with that name already exists.")
 
@@ -100,18 +102,20 @@ class RepositoryGitClient:
             raise Exception(f"Failed to create parent directory '{self.path.parent}': {e}")
 
         try:
-            base_url = self._compute_base_url(clone_url, filter_path=["bitbucket"])
+            base_url = self._compute_base_url(url, filter_path=["bitbucket"])
             provider_data = BitbucketRepositoryClient.provider_info(base_url)
             provider_name = provider_data.get("provider", "Unknown")
         except Exception as e:
             raise Exception(f"Error getting basic repository information: {e}")
 
-        if self._needs_authentication(clone_url):
-            authenticated_clone_url = self._create_authenticated_url(clone_url)
+        clone_url = url
+
+        if self._needs_authentication(url):
+            clone_url = self._create_authenticated_url(url)
 
         try:
             self.repository = Repo.clone_from(
-                url=authenticated_clone_url,
+                url=clone_url,
                 to_path=self.path,
                 branch=branch,
                 single_branch=True,
@@ -130,7 +134,7 @@ class RepositoryGitClient:
                         name=self.folder,
                         provider=provider_name,
                         api_url=base_url,
-                        clone_url=clone_url,
+                        clone_url=url,
                         branch=branch,
                         last_commit_hash=commit.hexsha,
                         last_commit_message=commit.message.strip(),
@@ -166,7 +170,7 @@ class RepositoryGitClient:
         except Exception as e:
             raise Exception(f"Unexpected pull error: {e}")
 
-    def delete(self) -> None:
+    def delete(self):
         if not self.path.exists():
             raise FileNotFoundError("The repository was not found.")
 
