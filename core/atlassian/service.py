@@ -220,6 +220,21 @@ class RepositoryGitClient:
         except Exception as e:
             raise RuntimeError(f"Unexpected error during repository deletion: {e}")
 
+    def relevance(self):
+        if not self.path.exists():
+            raise FileNotFoundError("The repository was not found.")
+
+        self.repository_load()
+
+        commit = self.repository.head.commit
+        
+        origin = self.repository.remotes.origin
+        origin.fetch()
+
+        branch_name = self.repository.active_branch.name
+        remote_commit = origin.refs[branch_name].commit
+        return commit.hexsha == remote_commit.hexsha
+
     def repository_load(self) -> Repo:
         if self.repository:
             return self.repository

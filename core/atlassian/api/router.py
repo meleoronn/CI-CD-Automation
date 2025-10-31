@@ -64,7 +64,7 @@ async def get_commits(
     response_model_exclude_none=True,
 )
 async def clone(
-    request: models.RepositoryCloneRequest,
+    request: models.RepositoryCloneRequest = Depends(),
     credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
 ) -> Union[models.BitbucketServerResponse, JSONResponse]:
     try:
@@ -89,7 +89,7 @@ async def clone(
     response_model_exclude_none=True,
 )
 async def pull(
-    request: models.RepositoryPullRequest,
+    request: models.RepositoryPullRequest = Depends(),
     credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
 ) -> Union[models.BitbucketServerResponse, JSONResponse]:
     try:
@@ -114,7 +114,7 @@ async def pull(
     response_model_exclude_none=True,
 )
 async def pull(
-    request: models.RepositoryDeleteRequest,
+    request: models.RepositoryDeleteRequest = Depends(),
     credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
 ) -> Union[models.BitbucketServerResponse, JSONResponse]:
     try:
@@ -126,6 +126,32 @@ async def pull(
         status_code = 404
     except Exception as e:
         message = f"Internal error when deleting a cloned repository: {e}"
+        status_code = 500
+
+    content = models.BitbucketServerResponse(status="error", message=message).model_dump(exclude_none=True)
+    return JSONResponse(content=content, status_code=status_code)
+
+
+@router.get(
+    "/relevance",
+    summary="Determines if there are any new changes",
+    response_model=models.BitbucketServerResponse,
+    response_model_exclude_none=True,
+)
+async def relevance(
+    request: models.RepositoryRelevanceRequest = Depends(),
+    credentials: Union[strategies.AuthStrategy, JSONResponse] = Depends(auth.git),
+) -> Union[models.BitbucketServerResponse, JSONResponse]:
+    try:
+        client = RepositoryGitClient(folder=request.name, credentials=credentials)
+        status = client.relevance()
+        return {
+            "status": "success",
+            "message": "The cloned repository has been checked for updates",
+            "data": {"relevance": status},
+        }
+    except Exception as e:
+        message = f"Internal error when checking the repository: {e}"
         status_code = 500
 
     content = models.BitbucketServerResponse(status="error", message=message).model_dump(exclude_none=True)
