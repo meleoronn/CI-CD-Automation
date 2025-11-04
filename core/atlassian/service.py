@@ -164,6 +164,7 @@ class RepositoryGitClient:
         with self.uow.start() as session:
             db = RepositoryReadWrite(session)
             db_repository = db.get_by_name(self.folder)
+
             time_now = datetime.now(timezone.utc)
 
             db_repository.last_sync_status = SyncStatus.failed
@@ -195,6 +196,8 @@ class RepositoryGitClient:
                 db_repository.failed_sync_count = (db_repository.failed_sync_count or 0) + 1
                 raise Exception(f"Unexpected pull error: {e}")
 
+        return None
+
     def delete(self):
         if not self.path.exists():
             raise FileNotFoundError("The repository was not found.")
@@ -214,6 +217,7 @@ class RepositoryGitClient:
                 db = RepositoryReadWrite(session)
                 db_repository = db.get_by_name(self.folder)
                 db_repository.status = RepoStatus.inactive
+                db_repository.active = False
                 db_repository.deleted_at = datetime.now(timezone.utc)
         except OSError as e:
             raise OSError(f"Failed to delete repository directory: {e}")
@@ -227,7 +231,7 @@ class RepositoryGitClient:
         self.repository_load()
 
         commit = self.repository.head.commit
-        
+
         origin = self.repository.remotes.origin
         origin.fetch()
 
