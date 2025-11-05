@@ -224,7 +224,7 @@ class RepositoryGitClient:
         except Exception as e:
             raise RuntimeError(f"Unexpected error during repository deletion: {e}")
 
-    def relevance(self):
+    def relevance(self) -> bool:
         if not self.path.exists():
             raise FileNotFoundError("The repository was not found.")
 

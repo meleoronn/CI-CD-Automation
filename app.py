@@ -24,7 +24,7 @@ def init_application():
         finally:
             print("Stopping syncing...")
 
-            for t in list(sync_manager._tasks.values()):
+            for t in list(sync_manager.tasks.values()):
                 t.cancel()
 
             await asyncio.sleep(0.2)
