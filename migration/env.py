@@ -20,6 +20,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 from core.settings import setting
 from core.db.models import Base
+import core.db.models
 
 config.set_main_option('sqlalchemy.url', setting.database_url.render_as_string(hide_password=False))
 target_metadata = Base.metadata

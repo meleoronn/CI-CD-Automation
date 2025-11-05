@@ -40,7 +40,7 @@ class Repository(Base):
     enable_polling = Column(Boolean, nullable=False, server_default="true")
     enable_webhooks = Column(Boolean, nullable=False, server_default="false")
 
-    sync_interval = Column(Integer, nullable=False, server_default="30000")
+    sync_interval = Column(Integer, nullable=False, server_default="3000")
     max_retries = Column(Integer, nullable=False, server_default="3")
     retry_delay = Column(Integer, nullable=False, server_default="1000")
 
